@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 namespace Aurora\System\Module;
@@ -32,11 +23,20 @@ class Manager
 	protected $_aModules = array();
 	
     /**
+     * This array contains a list of modules paths
+     *
+     * @var array
+     */
+	protected $_aModulesPaths = null;
+
+	/**
      * This array contains a list of modules
      *
      * @var array
      */
-	protected $_aAllowedModulesName = array();
+	protected $_aAllowedModulesName = array(
+		'core' => 'Core'
+	);
 
 	/**
      * This array contains a list of callbacks we should call when certain events are triggered
@@ -75,76 +75,55 @@ class Manager
 	 */
 	public function init()
 	{
-		$sModulesPath = $this->GetModulesPath();
-		
-		$oCoreModule = $this->loadModule('Core', $sModulesPath);
-		if ($oCoreModule !== false)
+		$oCoreModule = $this->GetModule('Core');
+		if ($oCoreModule instanceof AbstractModule)
 		{
-			\Aurora\System\Api::authorise();
-			
-			$oCoreModule->initialize();
-			$sTenant = $oCoreModule->GetTenantName();
-			$aModulePath = array(
-				$sModulesPath
-			);
-			if (!empty(\trim($sTenant)))
-			{
-				$sTenantModulesPath = $this->GetTenantModulesPath($sTenant);
-				\array_unshift($aModulePath, $sTenantModulesPath);
-			}
-			$aModulesPath = array();
-			foreach ($aModulePath as $sModulesPath)
-			{
-				if (@\is_dir($sModulesPath))
-				{
-					if (false !== ($rDirHandle = @\opendir($sModulesPath)))
-					{
-						while (false !== ($sFileItem = @\readdir($rDirHandle)))
-						{
-							if (0 < \strlen($sFileItem) && '.' !== $sFileItem{0} && \preg_match('/^[a-zA-Z0-9\-]+$/', $sFileItem))
-							{
-								$aModulesPath[$sModulesPath][] = $sFileItem;
-							}
-						}
+			$oUser = \Aurora\System\Api::authorise();
 
-						@\closedir($rDirHandle);
-					}
-				}
-			}
-			foreach ($aModulesPath as $aModulePath)
+			$aModulesPath = $this->GetModulesPaths();
+			foreach ($aModulesPath as $sModuleName => $sModulePath)
 			{
-				foreach ($aModulePath as $sModuleName)
+				$bIsModuleDisabledForUser = false;
+
+				if ($oUser instanceof \Aurora\Modules\Core\Classes\User)
 				{
-					$oModuleSettings = \Aurora\System\Api::GetModuleManager()->GetModuleSettings($sModuleName);
-					$bIsModuleDisabledForUser = false;
-					$oUser =\Aurora\System\Api::getAuthenticatedUser();
-					if ($oUser instanceof CUser)
-					{
-						$bIsModuleDisabledForUser = $oUser->isModuleDisabled($sModuleName);
-					
-					}
-					
-					if (!$oModuleSettings->GetConf('Disabled', false) && !$bIsModuleDisabledForUser)
+					$bIsModuleDisabledForUser = $oUser->isModuleDisabled($sModuleName);
+				}
+				if (!$this->getModuleConfigValue($sModuleName, 'Disabled', false) && !$bIsModuleDisabledForUser)
+				{
+					if ($this->loadModule($sModuleName, $sModulePath) || $this->isClientModule($sModuleName))
 					{
 						$this->_aAllowedModulesName[\strtolower($sModuleName)] = $sModuleName;
-						$this->loadModule($sModuleName, $sModulesPath);
 					}
 				}
 			}
 			foreach ($this->_aModules as $oModule)
 			{
-				if ($oModule instanceof AbstractModule)
+				if ($oModule instanceof AbstractModule && !$oModule->isValid())
 				{
-					$oModule->initialize();
+					if (isset($this->_aModules[\strtolower($oModule->GetName())]))
+					{
+						unset($this->_aModules[\strtolower($oModule->GetName())]);
+					}
+					if (isset($this->_aAllowedModulesName[\strtolower($oModule->GetName())]))
+					{
+						unset($this->_aAllowedModulesName[\strtolower($oModule->GetName())]);
+					}
 				}
 			}
 		}
 		else
 		{
 			echo 'Can\'t load \'Core\' Module';
-			return '';
 		}
 	}
+	
+	protected function isClientModule($sModuleName)
+	{
+		$sModulePath = $this->GetModulePath($sModuleName);
+		return (\file_exists($sModulePath . $sModuleName . '/js/manager.js'));
+	}
+	
 	
 	/**
 	 * 
@@ -204,42 +183,89 @@ class Manager
 			$oModuleConfig->Save();
 		}
 	}	
+	
+	/**
+	 * 
+	 */
+	public function SyncModulesConfigs()
+	{
+		foreach ($this->_aModules as $oModule)
+		{
+			if ($oModule instanceof AbstractModule)
+			{
+				$oSettings = $oModule->loadModuleSettings();
+				if ($oSettings instanceof Settings)
+				{
+					$aValues = array_merge(
+						$oSettings->GetDefaultConfigValues(), 
+						$oSettings->GetConfigValues()
+					);
+					$oSettings->SetConfigValues($aValues);
+					$oSettings->Save();
+				}
+			}
+		}
+	}
 
 	/**
 	 * 
 	 * @param string $sModuleName
-	 * @param string $sModulePath
 	 * @return \Aurora\System\Module\AbstractModule
 	 */
-	public function loadModule($sModuleName, $sModulePath)
+	public function loadModule($sModuleName, $sModulePath = null)
 	{
 		$mResult = false;
-		$aArgs = array($sModuleName, $sModulePath);
-		$this->broadcastEvent(
-			$sModuleName, 
-			'loadModule' . AbstractModule::$Delimiter . 'before', 
-			$aArgs
-		);
 		
-		$sModuleFilePath = $sModulePath.$sModuleName.'/Module.php';
-		if (@\file_exists($sModuleFilePath) && !$this->isModuleLoaded($sModuleName))
-		{		
-			$sModuleClassName = '\\Aurora\\Modules\\' . $sModuleName . '\\Module';
-			$oModule = new $sModuleClassName($sModuleName, $sModulePath);
-			if ($oModule instanceof AbstractModule)
-			{
-				 $this->_aModules[\strtolower($sModuleName)] = $oModule;
-				 $mResult = $oModule;
-			}
+		if (!isset($sModulePath))
+		{
+			$sModulePath = $this->GetModulePath($sModuleName);
 		}
-
-		$this->broadcastEvent(
-			$sModuleName, 
-			'loadModule' . AbstractModule::$Delimiter . 'after', 
-			$aArgs,
-			$mResult
-		);
 		
+		if ($sModulePath)
+		{
+			$aArgs = array($sModuleName, $sModulePath);
+			$this->broadcastEvent(
+				$sModuleName, 
+				'loadModule' . AbstractModule::$Delimiter . 'before', 
+				$aArgs
+			);
+
+			if (!$this->isModuleLoaded($sModuleName))
+			{
+				if (@\file_exists($sModulePath.$sModuleName.'/Module.php') && !$this->isModuleLoaded($sModuleName))
+				{		
+					$sModuleClassName = '\\Aurora\\Modules\\' . $sModuleName . '\\Module';
+					$oModule = new $sModuleClassName($sModuleName, $sModulePath);
+					if ($oModule instanceof AbstractModule)
+					{
+						foreach ($oModule->GetRequireModules() as $sModule)
+						{
+							$oSubModule = \Aurora\System\Api::GetModule($sModule);
+							if (!$oSubModule)
+							{
+								break;
+							}
+						}
+						if ($oModule->initialize())
+						{
+							$this->_aModules[\strtolower($sModuleName)] = $oModule;
+							$mResult = $oModule;
+						}
+					}
+				}
+			}
+			else
+			{
+				$mResult = $this->GetModule($sModuleName);
+			}
+
+			$this->broadcastEvent(
+				$sModuleName, 
+				'loadModule' . AbstractModule::$Delimiter . 'after', 
+				$aArgs,
+				$mResult
+			);
+		}		
 		return $mResult;
 	}
 
@@ -316,10 +342,11 @@ class Manager
 		
 		foreach($aSubscriptions as $fCallback) 
 		{
-			if (\is_callable($fCallback))
+			if (\is_callable($fCallback) && $this->IsAllowedModule($fCallback[0]->GetName()))
 			{
 				\Aurora\System\Api::Log('Execute subscription: '. $fCallback[0]->GetName() . AbstractModule::$Delimiter . $fCallback[1]);
 				\Aurora\System\Api::Log('Arguments before subscription:');
+				
 				\Aurora\System\Api::LogObject($aArguments);
 				
 				$mCallBackResult = \call_user_func_array(
@@ -331,12 +358,13 @@ class Manager
 				);
 				
 				\Aurora\System\Api::Log('Arguments after subscription:');
+				
 				\Aurora\System\Api::LogObject($aArguments);
 
 				\Aurora\System\Api::Log('Subscription result:');
 				\Aurora\System\Api::LogObject($mResult);
 
-				\Aurora\System\Api::GetModuleManager()->AddResult(
+				$this->AddResult(
 					$fCallback[0]->GetName(), 
 					$sEvent, 
 					$aArguments,
@@ -444,8 +472,63 @@ class Manager
 	 */
 	public function GetModulesPath()
 	{
-		return AURORA_APP_ROOT_PATH.'modules/';
+		return AU_APP_ROOT_PATH.'modules/';
 	}
+	
+	/**
+	 * @todo return correct path according to curent tenant 
+	 * 
+	 * @return array
+	 */
+	public function GetModulesPaths()
+	{
+		if (!isset($this->_aModulesPaths))
+		{
+			$sModulesPath = $this->GetModulesPath();
+			$aModulePath = array(
+				$sModulesPath
+			);
+			$oCoreModule = $this->loadModule('Core', $sModulesPath);
+			$sTenant = \trim($oCoreModule->GetTenantName());
+			if (!empty($sTenant))
+			{
+				$sTenantModulesPath = $this->GetTenantModulesPath($sTenant);
+				\array_unshift($aModulePath, $sTenantModulesPath);
+			}
+			$this->_aModulesPaths = array();
+			foreach ($aModulePath as $sModulesPath)
+			{
+				if (@\is_dir($sModulesPath))
+				{
+					if (false !== ($rDirHandle = @\opendir($sModulesPath)))
+					{
+						while (false !== ($sFileItem = @\readdir($rDirHandle)))
+						{
+							if (0 < \strlen($sFileItem) && '.' !== $sFileItem{0} && \preg_match('/^[a-zA-Z0-9\-]+$/', $sFileItem))
+							{
+								$this->_aModulesPaths[$sFileItem] = $sModulesPath;
+							}
+						}
+
+						@\closedir($rDirHandle);
+					}
+				}
+			}	
+		}
+		
+		return $this->_aModulesPaths;
+	}
+
+	/**
+	 * @todo return correct path according to curent tenant 
+	 * 
+	 * @return string
+	 */
+	public function GetModulePath($sModuleName)
+	{
+		$aModulesPaths = $this->GetModulesPaths();
+		return isset($aModulesPaths[$sModuleName]) ? $aModulesPaths[$sModuleName] : false;
+	}	
 
 	/**
 	 * @todo return correct path according to curent tenant 
@@ -462,7 +545,7 @@ class Manager
 	 */
 	public function GetTenantModulesPath($sTenant)
 	{
-		return AURORA_APP_ROOT_PATH.'tenants/' . $sTenant . '/modules/';
+		return AU_APP_ROOT_PATH.'tenants/' . $sTenant . '/modules/';
 	}
 
 	/**
@@ -471,6 +554,15 @@ class Manager
 	public function GetAllowedModulesName()
 	{
 		return $this->_aAllowedModulesName;
+	}
+
+	/**
+	 * @param string $sModuleName
+	 * @return array
+	 */
+	public function IsAllowedModule($sModuleName)
+	{
+		return array_key_exists(\strtolower($sModuleName), $this->_aAllowedModulesName);
 	}
 
 	/**
@@ -501,8 +593,19 @@ class Manager
 	 */
 	public function GetModule($sModuleName)
 	{
-		$sModuleName = strtolower($sModuleName);
-		return (isset($this->_aModules[$sModuleName]) &&  $this->_aModules[$sModuleName] instanceof AbstractModule) ? $this->_aModules[$sModuleName] : false;
+		$mResult = false;
+		
+		$sModuleNameLower = strtolower($sModuleName);
+		if ($this->isModuleLoaded($sModuleName))
+		{
+			$mResult = $this->_aModules[$sModuleNameLower];
+		}
+		else
+		{
+			$mResult = $this->loadModule($sModuleName);
+		}
+		
+		return $mResult;
 	}
 	
 	
@@ -592,7 +695,7 @@ class Manager
 		}
 		else
 		{
-			echo 'Can\'t find \''.$sEntryName.'\' Entry';
+			$this->RunEntry('error');
 		}
 		
 		return $mResult;
@@ -636,12 +739,26 @@ class Manager
 	 * @param string $sMethod
 	 * @param mixed $mResult
 	 */
-	public function AddResult($sModule, $sMethod, $aParameters, &$mResult, $iErrorCode = 0)
+	public function AddResult($sModule, $sMethod, $aParameters, $mResult, $iErrorCode = 0)
 	{
+		if (is_string($mResult))
+		{
+			$mResult = \str_replace(\Aurora\System\Api::$aSecretWords, '*******', $mResult);
+		}
+			
+		$aMapParameters = array();
+		foreach ($aParameters as $sKey => $mParameter)
+		{
+			if (!is_resource($mParameter) && gettype($mParameter) !== 'unknown type')
+			{
+				$aMapParameters[$sKey] = $mParameter;
+			}
+		}
+		
 		$aResult = array(
 			'Module' => $sModule,
 			'Method' => $sMethod,
-			'Parameters' => $aParameters,
+			'Parameters' => $aMapParameters,
 			'Result' => $mResult
 		);
 		

@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 /**
@@ -26,7 +17,7 @@
 
 namespace Aurora\System\Managers\Eav\Storages;
 
-class Storage extends \Aurora\System\Managers\AbstractManagerStorage
+class Storage extends \Aurora\System\Managers\AbstractStorage
 {
 	/**
 	 * 
@@ -45,7 +36,7 @@ class Storage extends \Aurora\System\Managers\AbstractManagerStorage
 	 * @param type $sUUID
 	 * @return type
 	 */
-	public function createEntity($sModule, $sType, $sUUID)
+	public function createEntity($sModule, $sType, $sUUID, $sParentUUID)
 	{
 		return false;
 	}
@@ -113,6 +104,14 @@ class Storage extends \Aurora\System\Managers\AbstractManagerStorage
 	/**
 	 */
 	public function setAttributes($aEntitiesIds, $aAttributes)
+	{
+		return true;
+	}	
+	
+	/**
+	 * @return bool
+	 */
+	public function deleteAttribute($sType, $iEntityId, $sAttribute)
 	{
 		return true;
 	}	

@@ -8,8 +8,9 @@
  * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
-namespace Aurora\System\Managers\Eav\Storages\Db\CommandCreator;
+namespace Aurora\System\Module;
 
-class PostgreSQL extends \Aurora\System\Managers\Eav\Storages\Db\CommandCreator
-{
-}
+/**
+ * @package Api
+ */
+class DefaultSettings extends \Aurora\System\AbstractSettings {}

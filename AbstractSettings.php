@@ -1,22 +1,12 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
-
 
 namespace Aurora\System;
 
@@ -59,6 +49,41 @@ abstract class AbstractSettings
 		}
 	}
 	
+	/**
+	 * 
+	 * @param type $sName
+	 * @param type $mValue
+	 */
+	public function __set($sName, $mValue) 
+	{
+		$this->SetConf($sName, $mValue);
+	}
+
+	/**
+	 * 
+	 * @param type $sName
+	 */
+	public function __get($sName) 
+	{
+		$this->GetConf($sName);
+	}
+
+	/**
+	 * @return array
+	 */
+	public function GetConfigValues()
+	{
+		return $this->aContainer;
+	}
+
+	/**
+	 * @param array $aValues
+	 */
+	public function SetConfigValues($aValues)
+	{
+		$this->aContainer = $aValues;
+	}
+
 	/**
 	 * @param string $sKey
 	 *
@@ -176,10 +201,10 @@ abstract class AbstractSettings
 	{
 		$bResult = false;
 		
-		if (file_exists($sJsonFile))
+		if (\file_exists($sJsonFile))
 		{
-			$sJsonData = file_get_contents($sJsonFile);
-			$aData = json_decode($sJsonData, true);
+			$sJsonData = \file_get_contents($sJsonFile);
+			$aData = \json_decode($sJsonData, true);
 			$bResult = $this->Populate($aData);
 		}
 		

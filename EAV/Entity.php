@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 /**
@@ -38,7 +29,19 @@ class Entity
 	/**
 	 * @var string
 	 */
-	protected $sModuleName;
+	public $ModuleName;
+
+	/**
+	 *
+	 * @var string 
+	 */
+	public $ParentType = null;
+	
+	/**
+	 *
+	 * @var string
+	 */
+	public $ParentUUID = null;
 
 	/**
 	 * @var array
@@ -69,9 +72,11 @@ class Entity
 	/**
 	 * @var array
 	 */
-	public static $aReadOnlyAttributes = array(
-		'entityid', 
-		'uuid'
+	public static $aSystemAttributes = array(
+		'entityid' => 'int', 
+		'uuid' => 'string',
+		'modulename' => 'string',
+		'parentuuid' => 'string'
 	);
 	
 	/**
@@ -93,7 +98,7 @@ class Entity
 		$this->EntityId = 0;
 		$this->UUID = self::generateUUID();
 		
-		$this->sModuleName = $sModuleName;
+		$this->ModuleName = $sModuleName;
 
 		$this->aAttributes = array();
 		
@@ -107,7 +112,7 @@ class Entity
 	 */
 	public function setModule($sModuleName)
 	{
-		return $this->sModuleName = $sModuleName;
+		return $this->ModuleName = $sModuleName;
 	}
 
 	/**
@@ -116,7 +121,7 @@ class Entity
 	 */
 	public function getName()
 	{
-		return \Aurora\System\Utils::getShortClassName(\get_class($this));
+		return \get_class($this);
 	}
 	
 	/**
@@ -125,13 +130,13 @@ class Entity
 	 */
 	public function getModule()
 	{
-		return $this->sModuleName;
+		return $this->ModuleName;
 	}
 	
 	public function isModuleDisabled($sModuleName)
 	{
-		$sDisabledModules = isset($this->{'@DisabledModules'}) ? $this->{'@DisabledModules'} : '';
-		$aDisabledModules =  !empty(trim($sDisabledModules)) ? array($sDisabledModules) : array();
+		$sDisabledModules = isset($this->{'@DisabledModules'}) ? \trim($this->{'@DisabledModules'}) : '';
+		$aDisabledModules =  !empty($sDisabledModules) ? array($sDisabledModules) : array();
 		if (substr_count($sDisabledModules, "|") > 0)
 		{
 			$aDisabledModules = explode("|", $sDisabledModules);
@@ -215,14 +220,19 @@ class Entity
 	public function isStringAttribute($sPropertyName)
 	{
 		return in_array(
-				$this->getType($sPropertyName), 
-				array(
-					'string', 
-					'text', 
-					'datetime'
+			$this->getType($sPropertyName), 
+			array(
+				'string', 
+				'text', 
+				'datetime'
 			)
 		);
 	}		
+	
+	public function isSystemAttribute($sAttribute)
+	{
+		return in_array(strtolower($sAttribute), array_keys(self::$aSystemAttributes));
+	}
 	
 	/**
 	 * @param string $sPropertyName
@@ -232,8 +242,7 @@ class Entity
 	{
 		$bResult = false;
 		$aMapItem = $this->getMapItem($sPropertyName);
-		if ($aMapItem !== null && is_array($aMapItem))
-		{
+		if ($aMapItem !== null && is_array($aMapItem)) {
 			$bResult = ($aMapItem[0] === 'encrypted');
 		}
 		
@@ -283,6 +292,7 @@ class Entity
 		{
 			$mValue->Encrypt();
 		}
+		$mValue->Inherited = false;
 		$this->setAttribute($mValue);
 	}
 
@@ -305,6 +315,37 @@ class Entity
 				$oAttribute->Decrypt();
 			}
 			$mValue = $oAttribute->Value;
+
+			if ($this->isDefaultValue($sName, $mValue) && isset($this->ParentType))
+			{
+				if (is_subclass_of($this->ParentType, 'Aurora\System\EAV\Entity'))
+				{
+					$oEntity = Entity::createInstance($this->ParentType, $this->ModuleName);
+					if (isset($this->ParentUUID))
+					{
+						$oEntity = (new \Aurora\System\Managers\Eav())->getEntity($this->ParentUUID);
+						$mValue = $oEntity->{$sName};
+						$oAttribute->Inherited = true;
+					}
+				}
+				else if(is_subclass_of($this->ParentType, 'Aurora\System\AbstractSettings'))
+				{
+					if($this->ParentType === 'Aurora\System\Settings')
+					{
+						$mValue = \Aurora\System\Api::GetSettings()->GetConf($sName);
+						$oAttribute->Inherited = true;
+					}
+					if($this->ParentType === 'Aurora\System\Module\Settings')
+					{
+						$oModule = \Aurora\System\Api::GetModule($this->ModuleName);
+						if ($oModule instanceof \Aurora\System\Module\AbstractModule)
+						{
+							$mValue = $oModule->GetSettings()->GetConf($sName);
+							$oAttribute->Inherited = true;
+						}
+					}
+				}
+			}
 		}
 		else
 		{
@@ -325,6 +366,10 @@ class Entity
 		return $mValue;
 	}
 	
+	/**
+	 * 
+	 * @param type $aProperties
+	 */
 	public function populate($aProperties)
 	{
 		$aMap = $this->getMap();
@@ -336,6 +381,28 @@ class Entity
 			}
 		}
 	}
+	
+	public function resetToDefaults()
+	{
+		foreach ($this->aAttributes as $oAttrinbute)
+		{
+			$this->{$oAttrinbute->Name} = $this->getDefaultValue($oAttrinbute->Name);
+		}
+	}
+	
+	public function resetToDefault($sAttribute)
+	{
+		$mResult = (new \Aurora\System\Managers\Eav())->deleteAttribute(
+			$this->getType($sAttribute),
+			$this->EntityId,
+			$sAttribute
+		);	
+		
+		if ($mResult)
+		{
+			$this->{$sAttribute} = $this->getDefaultValue($sAttribute);
+		}
+	}
 
 	/**
 	 * @return string
@@ -344,19 +411,81 @@ class Entity
 	{
 		$mType = 'string';
 		
-		$aMap = $this->getMap();
-		if (isset($aMap[$sAttribute]))
+		if ($this->isSystemAttribute($sAttribute))
 		{
-			$mType = $aMap[$sAttribute][0];
-			if ($mType === 'encrypted')
+			if (isset(self::$aSystemAttributes[\strtolower($sAttribute)]))
 			{
-				$mType = 'string';
+				$mType = self::$aSystemAttributes[\strtolower($sAttribute)];
+			}
+		}
+		else
+		{
+			$aMap = $this->getMap();
+			if (isset($aMap[$sAttribute]))
+			{
+				$mType = $aMap[$sAttribute][0];
+				if ($mType === 'encrypted')
+				{
+					$mType = 'string';
+				}
 			}
 		}
 		
 		return $mType;
 	}
 	
+	/**
+	 * 
+	 * @param type $sAttribute
+	 * @param type $mValue
+	 * @return type
+	 */
+	public function isDefaultValue($sAttribute, $mValue)
+	{
+		$bResult = false;
+		$aMap = $this->getMap();
+		if (isset($aMap[$sAttribute]))
+		{
+			$bResult = ($mValue === $aMap[$sAttribute][1]);
+		}
+		
+		return $bResult;
+	}
+	
+	/**
+	 * 
+	 * @param type $sAttribute
+	 * @return type
+	 */
+	public function getDefaultValue($sAttribute)
+	{
+		$mResult = null;
+		$aMap = $this->getMap();
+		if (isset($aMap[$sAttribute]))
+		{
+			$mResult = $aMap[$sAttribute][1];
+		}
+		
+		return $mResult;
+	}
+
+	/**
+	 * 
+	 * @param type $sAttribute
+	 * @return type
+	 */
+	public function isOverridedAttribute($sAttribute)
+	{
+		$bOverride = false;
+		$oAttribute = $this->getAttribute($sAttribute);
+		if ($oAttribute instanceof Attribute)
+		{
+			$bOverride = $oAttribute->Override;
+		}
+		$aMap = $this->getMap();
+		return ((isset($aMap[$sAttribute]) && isset($aMap[$sAttribute][2]) && $aMap[$sAttribute][2] === true) || $bOverride);
+	}	
+
 	/**
 	 * @return bool
 	 */
@@ -370,13 +499,10 @@ class Entity
 	 */
 	public function getMap()
 	{
-//		if (!isset($this->aMap))
-//		{
-			$this->aMap = array_merge(
-				$this->getStaticMap(), 
-				\Aurora\System\Api::GetModuleManager()->getExtendedObject($this->getName())
-			);
-//		}
+		$this->aMap = array_merge(
+			$this->getStaticMap(), 
+			\Aurora\System\Api::GetModuleManager()->getExtendedObject($this->getName())
+		);
 		return $this->aMap;
 	}
 	
@@ -397,9 +523,13 @@ class Entity
 		return isset($this->aAttributes[$sAttributeName]);
 	}	
 
-	public function setAttribute(Attribute $oAttribute)
+	/**
+	 * 
+	 * @param \Aurora\System\EAV\Attribute $oAttribute
+	 */
+	private function setAttribute(Attribute $oAttribute)
 	{
-		if (!in_array(strtolower($oAttribute->Name), self::$aReadOnlyAttributes))
+		if (!$this->isSystemAttribute($oAttribute->Name))
 		{
 			$oAttribute->EntityId = $this->EntityId;
 			$this->aAttributes[$oAttribute->Name] = $oAttribute;
@@ -407,9 +537,25 @@ class Entity
 	}
 	
 	/**
+	 * 
+	 * @param array $aAttributes
+	 */
+	public function setOverridedAttributes($aAttributes)
+	{
+		foreach($aAttributes as $sAttribute)
+		{
+			$oAttribute = $this->getAttribute($sAttribute);
+			if ($oAttribute instanceof Attribute)
+			{
+				$oAttribute->Override = true;
+			}
+		}
+	}
+	
+	/**
 	 * @return \Aurora\System\EAV\Attribute
 	 */
-	public function getAttribute($sAttributeName)
+	private function getAttribute($sAttributeName)
 	{
 		return isset($this->aAttributes[$sAttributeName]) ? $this->aAttributes[$sAttributeName] : false;
 	}	
@@ -464,18 +610,14 @@ class Entity
 	{
 		$aResult = array(
 			'EntityId' => $this->EntityId,
-			'UUID' => $this->UUID
+			'UUID' => $this->UUID,
+			'ParentUUID' => $this->ParentUUID,
+			'ModuleName' => $this->ModuleName
 		);
 		
 		foreach($this->aAttributes as $oAttribute)
 		{
-			$mValue = $oAttribute->Value;
-			if ($this->isEncryptedAttribute($oAttribute->Name))
-			{
-				$mValue = \Aurora\System\Utils::DecryptValue($oAttribute->Value);
-			}
-
-			$aResult[$oAttribute->Name] = $mValue;
+			$aResult[$oAttribute->Name] = $this->{$oAttribute->Name};
 		}
 		return $aResult;
 	}

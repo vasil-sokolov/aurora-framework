@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 namespace Aurora\System;
@@ -67,9 +58,27 @@ class Application
 		return $oInstance;
 	}
 	
+	public static function DebugMode($bDebug)
+	{
+		Api::$bDebug = $bDebug;
+	}
+	
+	public static function UseDbLogs()
+	{
+		Api::$bUseDbLog = true;
+	}
+	
 	public static function Start($sDefaultEntry = 'default')
 	{
-		Api::Init();
+		try
+		{
+			Api::Init();
+		}
+		catch (\Aurora\System\Exceptions\ApiException $oEx)
+		{
+			\Aurora\System\Api::LogException($oEx);
+			echo $oEx->getMessage() . '<br/>';
+		}
 		
 		self::RedirectToHttps();
 		self::GetVersion();
@@ -84,8 +93,8 @@ class Application
 	 */
 	public static function GetVersion()
 	{
-		$sVersion = @\file_get_contents(AURORA_APP_ROOT_PATH.'VERSION');
-		\define('AURORA_APP_VERSION', $sVersion);
+		$sVersion = @\file_get_contents(AU_APP_ROOT_PATH.'VERSION');
+		\define('AU_APP_VERSION', $sVersion);
 		return $sVersion;
 	}
 	
@@ -114,15 +123,17 @@ class Application
 			$aQuery = array();
 
 			$oHttp = \MailSo\Base\Http::SingletonInstance();
-			$aPathInfo = \array_filter(
-				\explode('/', \trim(\trim($oHttp->GetServer('PATH_INFO', ''), '/')))
-			);
-			if (0 < \count($aPathInfo)) 
-			{
-				$aQuery = $aPathInfo;
-			} 
-			else 
-			{
+			
+			//temporary remove code below, need to remove it late if everything works fine
+			// $aPathInfo = \array_filter(
+				// \explode('/', \trim(\trim($oHttp->GetServer('PATH_INFO', ''), '/')))
+			// );
+			// if (0 < \count($aPathInfo)) 
+			// {
+				// $aQuery = $aPathInfo;
+			// } 
+			// else 
+			// {
 				$sQuery = \trim(\trim($oHttp->GetQueryString()), ' /');
 
 				$iPos = \strpos($sQuery, '&');
@@ -131,7 +142,7 @@ class Application
 					$sQuery = \substr($sQuery, 0, $iPos);
 				}
 				$aQuery = \explode('/', $sQuery);
-			}
+			// }
 			foreach ($aQuery as $sQueryItem) 
 			{
 				$iPos = \strpos($sQueryItem, '=');

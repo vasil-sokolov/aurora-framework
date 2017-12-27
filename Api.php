@@ -1,49 +1,40 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 namespace Aurora\System;
 
-if (!defined('AURORA_APP_ROOT_PATH'))
+if (!defined('AU_APP_ROOT_PATH'))
 {
-	define('AURORA_APP_ROOT_PATH', rtrim(realpath(dirname(__DIR__)), '\\/').'/');
-	define('AURORA_APP_START', microtime(true));
+	define('AU_APP_ROOT_PATH', rtrim(realpath(dirname(__DIR__)), '\\/').'/');
+	define('AU_APP_START', microtime(true));
 }
 
-define('API_PATH_TO_AURORA', '/../');
+define('AU_API_PATH_TO_AURORA', '/../');
 
-define('API_CRLF', "\r\n");
-define('API_TAB', "\t");
+define('AU_API_CRLF', "\r\n");
+define('AU_API_TAB', "\t");
 
-define('API_SESSION_WEBMAIL_NAME', 'PHPWEBMAILSESSID');
+define('AU_API_SESSION_WEBMAIL_NAME', 'PHPWEBMAILSESSID');
 
-define('API_HELPDESK_PUBLIC_NAME', '_helpdesk_');
+define('AU_API_HELPDESK_PUBLIC_NAME', '_helpdesk_');
 
 // timezone fix
 $sDefaultTimeZone = function_exists('date_default_timezone_get')
 	? @date_default_timezone_get() : 'US/Pacific';
 
-define('API_SERVER_TIME_ZONE', ($sDefaultTimeZone && 0 < strlen($sDefaultTimeZone))
+define('AU_API_SERVER_TIME_ZONE', ($sDefaultTimeZone && 0 < strlen($sDefaultTimeZone))
 	? $sDefaultTimeZone : 'US/Pacific');
 
-if (defined('API_SERVER_TIME_ZONE') && function_exists('date_default_timezone_set'))
+if (defined('AU_API_SERVER_TIME_ZONE') && function_exists('date_default_timezone_set'))
 {
-	@date_default_timezone_set(API_SERVER_TIME_ZONE);
+	@date_default_timezone_set(AU_API_SERVER_TIME_ZONE);
 }
 
 unset($sDefaultTimeZone);
@@ -54,11 +45,6 @@ unset($sDefaultTimeZone);
  */
 class Api
 {
-	/**
-	 * @var \Aurora\System\Managers\GlobalManager
-	 */
-	static $oManager;
-
 	/**
 	 * @var \Aurora\System\Module\Manager
 	 */
@@ -100,6 +86,12 @@ class Api
 	static $bUseDbLog;
 	
 	/**
+	 * @var bool
+	 */
+	static $bDebug = false;
+		
+	
+	/**
 	 * @var string
 	 */
 	public static $sEventLogPrefix = 'event-';
@@ -114,6 +106,24 @@ class Api
 	 */
 	public static $__SKIP_CHECK_USER_ROLE__ = false;
 	
+	/**
+	 * @var string 
+	 */
+	protected static $sLanguage = null;
+	
+	/**
+	 * @var \Aurora\System\Settings
+	 */
+	protected static $oSettings;	
+
+	/**
+	 * @var \Aurora\System\Db\Storage
+	 */
+	protected static $oConnection;	
+	
+	/**
+	 * 
+	 */
 	public static function InitSalt()
 	{
 		$sSalt = '';
@@ -123,14 +133,14 @@ class Api
 			$sSaltDesc = '<?php #'.md5(microtime(true).rand(1000, 9999)).md5(microtime(true).rand(1000, 9999));
 			@file_put_contents($sSaltFile, $sSaltDesc);
 		} 
-		else 
-		{
-			$sSalt = '$2y$07$' . md5(file_get_contents($sSaltFile)) . '$';
-		}
+		$sSalt = '$2y$07$' . md5(@file_get_contents($sSaltFile)) . '$';
 
-		self::$sSalt = $sSalt;		
+		self::$sSalt = $sSalt;
 	}
 	
+	/**
+	 * 
+	 */
 	public static function GrantAdminPrivileges()
 	{
 		self::$aUserSession['UserId'] = -1;
@@ -148,7 +158,7 @@ class Api
 	 */
 	public static function Init($bGrantAdminPrivileges = false)
 	{
-		include_once self::LibrariesPath().'autoload.php';
+		include_once self::GetVendorPath().'autoload.php';
 		
 		if ($bGrantAdminPrivileges)
 		{
@@ -160,13 +170,12 @@ class Api
 		self::$aSecretWords = array();
 		self::$bUseDbLog = false;
 
-		if (!is_object(self::$oManager)) 
+		if (!is_object(self::$oModuleManager)) 
 		{
 			self::InitSalt();
 
-			self::$oManager = new Managers\GlobalManager();
 			self::$bIsValid = self::validateApi();
-			self::GetModuleManager();
+			self::GetModuleManager()->init();
 			self::$aModuleDecorators = array();
 			
 			self::removeOldLogs();
@@ -226,7 +235,6 @@ class Api
 		if (!isset(self::$oModuleManager))
 		{
 			self::$oModuleManager = Module\Manager::createInstance();
-			self::$oModuleManager->init();
 		}
 		
 		return self::$oModuleManager;
@@ -240,12 +248,12 @@ class Api
 	 */
 	public static function GetModuleDecorator($sModuleName, $iUser = null)
 	{
-		if (!isset(self::$aModuleDecorators[$sModuleName]))
+		if (!isset(self::$aModuleDecorators[$sModuleName]) && self::GetModule($sModuleName) !== false)
 		{
 			self::$aModuleDecorators[$sModuleName] = new Module\Decorator($sModuleName, $iUser);
 		}
 		
-		return self::$aModuleDecorators[$sModuleName];
+		return isset(self::$aModuleDecorators[$sModuleName]) ? self::$aModuleDecorators[$sModuleName] : false;
 	}
 
 	/**
@@ -262,14 +270,6 @@ class Api
 	{
 		return self::GetModuleManager()->GetModules();
 	}	
-	
-	/**
-	 * @return \Aurora\System\Managers\GlobalManager
-	 */
-	public static function GetManager()
-	{
-		return self::$oManager;
-	}
 
 	/**
 	 * 
@@ -322,8 +322,42 @@ class Api
 	 */
 	public static function &GetSettings()
 	{
-		return self::$oManager->GetSettings();
+		if (null === self::$oSettings)
+		{
+			try
+			{
+				$sSettingsPath = \Aurora\System\Api::DataPath() . '/settings/';
+				if (!\file_exists($sSettingsPath))
+				{
+					\mkdir($sSettingsPath, 0777);
+				}
+				
+				self::$oSettings = new \Aurora\System\Settings($sSettingsPath . 'config.json');
+			}
+			catch (\Aurora\System\Exceptions\BaseException $oException)
+			{
+				self::$oSettings = false;
+			}
+		}
+		return self::$oSettings;		
 	}
+	
+	public static function &GetConnection()
+	{
+		if (null === self::$oConnection)
+		{
+			$oSettings =& self::GetSettings();
+			if ($oSettings)
+			{
+				self::$oConnection = new \Aurora\System\Db\Storage($oSettings);
+			}
+			else
+			{
+				self::$oConnection = false;
+			}
+		}
+		return self::$oConnection;
+	}	
 
 	/**
 	 * @return PDO|false
@@ -403,10 +437,10 @@ class Api
 	 */
 	public static function IsMobileApplication()
 	{
-		/* @var $oApiIntegrator \Aurora\Modules\Core\Managers\Integrator */
-		$oApiIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
+		/* @var $oIntegrator \Aurora\Modules\Core\Managers\Integrator */
+		$oIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
 
-		return (bool) $oApiIntegrator /*&& $oApiCapability->isNotLite()*/ && 1 === $oApiIntegrator->isMobile(); // todo
+		return (bool) $oIntegrator /*&& $oApiCapability->isNotLite()*/ && 1 === $oIntegrator->isMobile(); // todo
 	}
 	
 	/**
@@ -605,7 +639,7 @@ class Api
 			{
 				try
 				{
-					@error_log('['.\MailSo\Log\Logger::Guid().'][DB/backtrace]'.API_CRLF.trim($sLogData).API_CRLF, 3, $sLogFile);
+					@error_log('['.\MailSo\Log\Logger::Guid().'][DB/backtrace]'.AU_API_CRLF.trim($sLogData).AU_API_CRLF, 3, $sLogFile);
 				}
 				catch (Exception $oE) {}
 			}
@@ -626,7 +660,14 @@ class Api
 
 		if ($oSettings && $oSettings->GetConf('EnableLogging') && $iLogLevel <= $oSettings->GetConf('LoggingLevel')) 
 		{
-			$oAuthenticatedUser = self::getAuthenticatedUser();
+			try 
+			{
+				$oAuthenticatedUser = self::getAuthenticatedUser();
+			}
+			catch (\Exception $oEx)
+			{
+				$oAuthenticatedUser = false;
+			}
 			$sFirstPrefix = $oAuthenticatedUser && $oAuthenticatedUser->WriteSeparateLog ? $oAuthenticatedUser->PublicId . '-' : '';
 			$sLogFile = self::GetLogFileDir() . self::GetLogFileName($sFirstPrefix . $sFilePrefix);
 
@@ -639,7 +680,7 @@ class Api
 				$bIsFirst = false;
 				$sPost = (isset($_POST) && count($_POST) > 0) ? '[POST('.count($_POST).')]' : '[GET]';
 
-				self::LogOnly(API_CRLF.'['.$sDate.']['.$sGuid.'] '.$sPost.'[ip:'.(isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown').'] '.$sUri, $sLogFile);
+				self::LogOnly(AU_API_CRLF.'['.$sDate.']['.$sGuid.'] '.$sPost.'[ip:'.(isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown').'] '.$sUri, $sLogFile);
 				if (!empty($sPost)) 
 				{
 					if ($oSettings->GetConf('LogPostView', false)) 
@@ -666,7 +707,7 @@ class Api
 	{
 		try
 		{
-			@error_log($sDesc.API_CRLF, 3, $sLogFile);
+			@error_log($sDesc.AU_API_CRLF, 3, $sLogFile);
 		}
 		catch (Exception $oE) {}
 
@@ -719,8 +760,8 @@ class Api
 	 */
 	public static function RootPath()
 	{
-		defined('API_ROOTPATH') || define('API_ROOTPATH', rtrim(dirname(__FILE__), '/\\').'/');
-		return API_ROOTPATH;
+		defined('AU_API_ROOTPATH') || define('AU_API_ROOTPATH', rtrim(dirname(__FILE__), '/\\').'/');
+		return AU_API_ROOTPATH;
 	}
 
 	/**
@@ -728,13 +769,13 @@ class Api
 	 */
 	public static function WebMailPath()
 	{
-		return self::RootPath().ltrim(API_PATH_TO_AURORA, '/');
+		return self::RootPath().ltrim(AU_API_PATH_TO_AURORA, '/');
 	}
 
 	/**
 	 * @return string
 	 */
-	public static function LibrariesPath()
+	public static function GetVendorPath()
 	{
 		return self::RootPath().'../vendor/';
 	}
@@ -769,17 +810,17 @@ class Api
 	public static function DataPath()
 	{
 		$dataPath = 'data';
-		if (!defined('API_DATA_FOLDER') && @file_exists(self::WebMailPath().'inc_settings_path.php')) 
+		if (!defined('AU_API_DATA_FOLDER') && @file_exists(self::WebMailPath().'inc_settings_path.php')) 
 		{
 			include self::WebMailPath().'inc_settings_path.php';
 		}
 
-		if (!defined('API_DATA_FOLDER') && isset($dataPath) && null !== $dataPath) 
+		if (!defined('AU_API_DATA_FOLDER') && isset($dataPath) && null !== $dataPath) 
 		{
-			define('API_DATA_FOLDER', Utils::GetFullPath($dataPath,self::WebMailPath()));
+			define('AU_API_DATA_FOLDER', Utils::GetFullPath($dataPath,self::WebMailPath()));
 		}
 
-		return defined('API_DATA_FOLDER') ? API_DATA_FOLDER : '';
+		return defined('AU_API_DATA_FOLDER') ? AU_API_DATA_FOLDER : '';
 	}
 
 	/**
@@ -812,8 +853,7 @@ class Api
 	public static function GenerateSsoToken($sEmail, $sPassword, $sLogin = '')
 	{
 		$sSsoHash = \md5($sEmail.$sPassword.$sLogin.\microtime(true).\rand(10000, 99999));
-		
-		return self::Cacher()->Set('SSO:'.$sSsoHash,self::EncodeKeyValues(array(
+		return self::Cacher()->Set('SSO:'.$sSsoHash, self::EncodeKeyValues(array(
 			'Email' => $sEmail,
 			'Password' => $sPassword,
 			'Login' => $sLogin
@@ -883,19 +923,113 @@ class Api
 
 		return $sResult;
 	}
+	
+	/**
+	 * 
+	 * @param string $sLanguage
+	 */
+	public static function SetLanguage($sLanguage)
+	{
+		self::$sLanguage = $sLanguage;
+	}		
 
 	/**
+	 * 
+	 * @param bool $bForNewUser
+	 * @return string
+	 */
+	public static function GetLanguage($bForNewUser = false)
+	{
+		$sResult = null;
+		if (isset(self::$sLanguage))
+		{
+			$sResult = self::$sLanguage;
+		}
+		else
+		{
+			$iAuthUserId = self::getAuthenticatedUserId();
+			$bSuperAdmin = $iAuthUserId === -1;
+			$oModuleManager = self::GetModuleManager();
+
+			$sResult = $oModuleManager->getModuleConfigValue('Core', 'Language');
+			if ($oModuleManager->getModuleConfigValue('Core', 'AutodetectLanguage', true))
+			{
+				$sResult = self::getBrowserLanguage();
+			}
+
+			if ($bSuperAdmin)
+			{
+				$oSettings = &self::GetSettings();
+				$sResult = $oSettings->GetConf('AdminLanguage');
+			}
+			else if (!$bForNewUser)
+			{
+				$oUser = self::getAuthenticatedUser();
+				if ($oUser)
+				{
+					$sResult = $oUser->Language;
+				}
+				else if (isset($_COOKIE['aurora-lang-on-login']))
+				{
+					$sResult = $_COOKIE['aurora-lang-on-login'];
+				}
+			}
+		}
+		
+		return $sResult;
+	}
+	
+	protected static function getBrowserLanguage()
+	{
+		$aLanguages = array(
+			'ar-dz' => 'Arabic', 'ar-bh' => 'Arabic', 'ar-eg' => 'Arabic', 'ar-iq' => 'Arabic', 'ar-jo' => 'Arabic', 'ar-kw' => 'Arabic',
+			'ar-lb' => 'Arabic', 'ar-ly' => 'Arabic', 'ar-ma' => 'Arabic', 'ar-om' => 'Arabic', 'ar-qa' => 'Arabic', 'ar-sa' => 'Arabic',
+			'ar-sy' => 'Arabic', 'ar-tn' => 'Arabic', 'ar-ae' => 'Arabic', 'ar-ye' => 'Arabic', 'ar' => 'Arabic',
+			'bg' => 'Bulgarian',
+			'zh-cn' => 'Chinese-Simplified', 'zh-hk' => 'Chinese-Simplified', 'zh-mo' => 'Chinese-Simplified', 'zh-sg' => 'Chinese-Simplified',
+			'zh-tw' => 'Chinese-Simplified', 'zh' => 'Chinese-Simplified',
+			'cs' => 'Czech',
+			'da' => 'Danish',
+			'nl-be' => 'Dutch', 'nl' => 'Dutch',
+			'en-au' => 'English', 'en-bz' => 'English ', 'en-ca' => 'English', 'en-ie' => 'English', 'en-jm' => 'English',
+			'en-nz' => 'English', 'en-ph' => 'English', 'en-za' => 'English', 'en-tt' => 'English', 'en-gb' => 'English',
+			'en-us' => 'English', 'en-zw' => 'English', 'en' => 'English', 'us' => 'English',
+			'et' => 'Estonian', 'fi' => 'Finnish',
+			'fr-be' => 'French', 'fr-ca' => 'French', 'fr-lu' => 'French', 'fr-mc' => 'French', 'fr-ch' => 'French', 'fr' => 'French',
+			'de-at' => 'German', 'de-li' => 'German', 'de-lu' => 'German', 'de-ch' => 'German', 'de' => 'German',
+			'el' => 'Greek', 'he' => 'Hebrew', 'hu' => 'Hungarian', 'it-ch' => 'Italian', 'it' => 'Italian',
+			'ja' => 'Japanese', 'ko' => 'Korean', 'lv' => 'Latvian', 'lt' => 'Lithuanian',
+			'nb-no' => 'Norwegian', 'nn-no' => 'Norwegian', 'no' => 'Norwegian', 'pl' => 'Polish',
+			'pt-br' => 'Portuguese-Brazil', 'pt' => 'Portuguese-Portuguese', 'pt-pt' => 'Portuguese-Portuguese',
+			'ro-md' => 'Romanian', 'ro' => 'Romanian',
+			'ru-md' => 'Russian', 'ru' => 'Russian', 'sr' => 'Serbian',
+			'es-ar' => 'Spanish', 'es-bo' => 'Spanish', 'es-cl' => 'Spanish', 'es-co' => 'Spanish', 'es-cr' => 'Spanish',
+			'es-do' => 'Spanish', 'es-ec' => 'Spanish', 'es-sv' => 'Spanish', 'es-gt' => 'Spanish', 'es-hn' => 'Spanish)',
+			'es-mx' => 'Spanish', 'es-ni' => 'Spanish', 'es-pa' => 'Spanish', 'es-py' => 'Spanish', 'es-pe' => 'Spanish',
+			'es-pr' => 'Spanish', 'es-us' => 'Spanish ', 'es-uy' => 'Spanish', 'es-ve' => 'Spanish', 'es' => 'Spanish',
+			'sv-fi' => 'Swedish', 'sv' => 'Swedish', 'th' => 'Thai', 'tr' => 'Turkish', 'uk' => 'Ukrainian', 'vi' => 'Vietnamese', 'sl' => 'Slovenian'
+		);
+		
+		$sLanguage = !empty($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE']) : 'en';
+		$aTempLanguages = preg_split('/[,;]+/', $sLanguage);
+		$sLanguage = !empty($aTempLanguages[0]) ? $aTempLanguages[0] : 'en';
+
+		$sLanguageShort = substr($sLanguage, 0, 2);
+		
+		return \array_key_exists($sLanguage, $aLanguages) ? $aLanguages[$sLanguage] :
+			(\array_key_exists($sLanguageShort, $aLanguages) ? $aLanguages[$sLanguageShort] : '');
+	}
+	
+	/**
 	 * @param string $sData
-	 * @param CAccount $oAccount
+	 * @param \Aurora\Modules\StandardAuth\Classes\Account $oAccount
 	 * @param array $aParams = null
 	 *
 	 * @return string
 	 */
 	public static function ClientI18N($sData, $oAccount = null, $aParams = null, $iPluralCount = null)
 	{
-		$oUser = self::getAuthenticatedUser();
-		$oModuleManager = self::GetModuleManager();
-		$sLanguage = $oUser ? $oUser->Language : $oModuleManager->getModuleConfigValue('Core', 'Language');
+		$sLanguage = self::GetLanguage();
 		
 		$aLang = null;
 		if (isset(self::$aClientI18N[$sLanguage])) 
@@ -1160,10 +1294,11 @@ class Api
 
 	/**
 	 * 
-	 * @return int
+	 * @return \Aurora\Modules\Core\Classes\User
 	 */
 	public static function authorise()
 	{
+		$oUser = null;
 		$mUserId = false;
 		if (isset(self::$aUserSession['UserId']))
 		{
@@ -1173,7 +1308,12 @@ class Api
 		{
 			$mUserId = self::getAuthenticatedUserId(self::getAuthToken());
 		}
-		return $mUserId;
+		try
+		{
+			$oUser = self::getUserById($mUserId);
+		}
+		catch (\Exception $oException) {}
+		return $oUser;
 	}	
 	
 	public static function getAuthenticatedUserInfo($sAuthToken = '')
@@ -1186,11 +1326,11 @@ class Api
 				$sAuthToken = self::$aUserSession['AuthToken'];
 			}
 		}
-		/* @var $oApiIntegrator \Aurora\Modules\Core\Managers\Integrator */
-		$oApiIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
-		if ($oApiIntegrator)
+		/* @var $oIntegrator \Aurora\Modules\Core\Managers\Integrator */
+		$oIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
+		if ($oIntegrator)
 		{
-			$mResult = $oApiIntegrator->getAuthenticatedUserInfo($sAuthToken);
+			$mResult = $oIntegrator->getAuthenticatedUserInfo($sAuthToken);
 		}
 		
 		return $mResult;
@@ -1199,11 +1339,11 @@ class Api
 	public static function validateAuthToken()
 	{
 		$bResult = false;
-		/* @var $oApiIntegrator \Aurora\Modules\Core\Managers\Integrator */
-		$oApiIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
-		if ($oApiIntegrator)
+		/* @var $oIntegrator \Aurora\Modules\Core\Managers\Integrator */
+		$oIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
+		if ($oIntegrator)
 		{
-			$bResult = $oApiIntegrator->validateAuthToken(self::getAuthToken());
+			$bResult = $oIntegrator->validateAuthToken(self::getAuthToken());
 		}
 		
 		return $bResult;
@@ -1220,11 +1360,11 @@ class Api
 			}
 			else
 			{
-				/* @var $oApiIntegrator \Aurora\Modules\Core\Managers\Integrator */
-				$oApiIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
-				if ($oApiIntegrator)
+				/* @var $oIntegrator \Aurora\Modules\Core\Managers\Integrator */
+				$oIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
+				if ($oIntegrator)
 				{
-					$aInfo = $oApiIntegrator->getAuthenticatedUserInfo($sAuthToken);
+					$aInfo = $oIntegrator->getAuthenticatedUserInfo($sAuthToken);
 					$mResult = $aInfo['userId'];
 					self::$aUserSession['UserId'] = (int) $mResult;
 					self::$aUserSession['AuthToken'] = $sAuthToken;
@@ -1261,10 +1401,10 @@ class Api
 				$iUserId = self::$aUserSession['UserId'];
 			}
 
-			$oApiIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
-			if ($oApiIntegrator)
+			$oIntegrator = new \Aurora\Modules\Core\Managers\Integrator();
+			if ($oIntegrator)
 			{
-				$oUser = $oApiIntegrator->getAuthenticatedUserByIdHelper($iUserId);
+				$oUser = $oIntegrator->getAuthenticatedUserByIdHelper($iUserId);
 			}
 		}
 		return $oUser;

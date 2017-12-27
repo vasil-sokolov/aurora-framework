@@ -1,7 +1,10 @@
 {
 	"name": "afterlogic/aurora-framework",
 	"type": "aurora-framework",
-	"description": "text",
+	"description": "",
+	"autoload": {
+		"classmap": ["/", "Installer.php"]
+	},
 	"require": {
 		"masterexploder/PHPThumb": "^2.1",
 		"symfony/filesystem": "^2.8",

@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 namespace Aurora\System;
@@ -38,27 +29,7 @@ class Notifications
 	const SystemNotConfigured = 112;
 	const ModuleNotFound = 113;
 	const MethodNotFound = 114;
-
-	const CanNotGetMessageList = 201;
-	const CanNotGetMessage = 202;
-	const CanNotDeleteMessage = 203;
-	const CanNotMoveMessage = 204;
-	const CanNotMoveMessageQuota = 205;
-	const CanNotCopyMessage = 206;
-	const CanNotCopyMessageQuota = 207;
-	const LibraryNoFound = 208;
-
-	const CanNotSaveMessage = 301;
-	const CanNotSendMessage = 302;
-	const InvalidRecipients = 303;
-	const CannotSaveMessageInSentItems = 304;
-	const UnableSendToRecipients = 305;
-	const ExternalRecipientsBlocked = 306;
-
-	const CanNotCreateFolder = 401;
-	const CanNotDeleteFolder = 402;
-	const CanNotSubscribeFolder = 403;
-	const CanNotUnsubscribeFolder = 404;
+	const LicenseLimit = 115;
 
 	const CanNotSaveSettings = 501;
 	const CanNotChangePassword = 502;
@@ -100,6 +71,7 @@ class Notifications
 	const CanNotUploadFileQuota = 812;
 	const FileAlreadyExists = 813;
 	const FileNotFound = 814;
+	const CanNotUploadFileLimit = 815;
 
 	const MailServerError = 901;
 	const UnknownError = 999;

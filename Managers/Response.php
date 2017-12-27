@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 namespace Aurora\System\Managers;
@@ -27,10 +18,10 @@ class Response
 	protected static $sMethod = null;
 
 	public static $objectNames = array(
-			'CApiMailMessageCollection' => 'MessageCollection',
-			'CApiMailMessage' => 'Message',
-			'CApiMailFolderCollection' => 'FolderCollection',
-			'CApiMailFolder' => 'Folder'
+			'Aurora\Modules\Mail\Classes\MessageCollection' => 'MessageCollection',
+			'Aurora\Modules\Mail\Classes\Message' => 'Message',
+			'Aurora\Modules\Mail\Classes\FolderCollection' => 'FolderCollection',
+			'Aurora\Modules\Mail\Classes\Folder' => 'Folder'
 	);
 
 	public static function GetMethod()
@@ -63,8 +54,9 @@ class Response
 		$mResult = false;
 		if (\is_object($oData))
 		{
-			$aNames = \explode('\\', \get_class($oData));
-			$sObjectName = end($aNames);
+//			$aNames = \explode('\\', \get_class($oData));
+//			$sObjectName = end($aNames);
+			$sObjectName = \get_class($oData);
 			$mResult = array(
 				'@Object' => self::GetObjectName($sObjectName)
 			);			
@@ -158,31 +150,46 @@ class Response
 	
 	public static function GetThumbResource($oAccount, $rResource, $sFileName, $bShow = true)
 	{
-		$sMd5Hash = \md5(\rand(1000, 9999));
+		$sHash = (string) \Aurora\System\Application::GetPathItemByIndex(1, '');
+		if (empty($sHash))
+		{
+			$sHash = \rand(1000, 9999);
+		}
+		$sMd5Hash = \md5($sHash);
 
 		$oApiFileCache = new Filecache();
-		$oApiFileCache->putFile($oAccount, 'Raw/Thumbnail/'.$sMd5Hash, $rResource, '_'.$sFileName);
-		if ($oApiFileCache->isFileExists($oAccount, 'Raw/Thumbnail/'.$sMd5Hash, '_'.$sFileName))
+		
+		$sThumb = null;
+		if (!$oApiFileCache->isFileExists($oAccount, 'Raw/Thumb/'.$sMd5Hash, '_'.$sFileName))
 		{
-			try
+			$oApiFileCache->putFile($oAccount, 'Raw/ThumbOrig/'.$sMd5Hash, $rResource, '_'.$sFileName);
+			if ($oApiFileCache->isFileExists($oAccount, 'Raw/ThumbOrig/'.$sMd5Hash, '_'.$sFileName))
 			{
-				$oThumb = new \PHPThumb\GD(
-					$oApiFileCache->generateFullFilePath($oAccount, 'Raw/Thumbnail/'.$sMd5Hash, '_'.$sFileName)
-				);
+				try
+				{
+					$oThumb = new \PHPThumb\GD(
+						$oApiFileCache->generateFullFilePath($oAccount, 'Raw/ThumbOrig/'.$sMd5Hash, '_'.$sFileName)
+					);
 
-				if ($bShow)
-				{
-					$oThumb->adaptiveResize(120, 100)->show();
+					$sThumb = $oThumb->adaptiveResize(120, 100)->getImageAsString();
+					$oApiFileCache->put($oAccount, 'Raw/Thumb/'.$sMd5Hash, $sThumb, '_'.$sFileName);
 				}
-				else 
-				{
-					return $oThumb->adaptiveResize(120, 100)->getImageAsString();
-				}
+				catch (\Exception $oE) {}
 			}
-			catch (\Exception $oE) {}
+			$oApiFileCache->clear($oAccount, 'Raw/ThumbOrig/'.$sMd5Hash, '_'.$sFileName);
 		}
-
-		$oApiFileCache->clear($oAccount, 'Raw/Thumbnail/'.$sMd5Hash, '_'.$sFileName);
+		if (!isset($sThumb))
+		{
+			$sThumb = $oApiFileCache->get($oAccount, 'Raw/Thumb/'.$sMd5Hash, '_'.$sFileName);
+		}
+		if ($bShow)
+		{
+			echo $sThumb; exit();
+		}
+		else 
+		{
+			return $sThumb;
+		}
 	}	
 	
 	/**
@@ -230,8 +237,9 @@ class Response
 		$aResult = array();
 		if ($oCollection instanceof \MailSo\Base\Collection)
 		{
-			$aNames = \explode('\\', \get_class($oCollection));
-			$sObjectName = end($aNames);
+//			$aNames = \explode('\\', \get_class($oCollection));
+//			$sObjectName = end($aNames);
+			$sObjectName = \get_class($oCollection);
 
 			$aResult = array(
 				'@Object' => 'Collection/'. self::GetObjectName($sObjectName),

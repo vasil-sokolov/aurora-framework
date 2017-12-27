@@ -1,22 +1,12 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
-
 
 namespace Aurora\System\Module;
 
@@ -25,29 +15,39 @@ namespace Aurora\System\Module;
  */
 class Settings extends \Aurora\System\AbstractSettings
 {
+	public $DefaultConfigFilePath;
 	public $ModuleName;
-	
+
 	/**
-	 * @return void
+	 * 
+	 * @param string $sModuleName
 	 */
 	public function __construct($sModuleName)
 	{
 		$this->ModuleName = $sModuleName;
+		$this->DefaultConfigFilePath = \Aurora\System\Api::GetModuleManager()->GetModulesPath() . '/' . $sModuleName . '/config.json';
 		$sModulesSettingsPath = \Aurora\System\Api::GetModuleManager()->GetModulesSettingsPath();
 		$sConfigFilePath = $sModulesSettingsPath . $sModuleName . '.config.json';
 		if (!\file_exists($sConfigFilePath))
 		{
-			$sDefaultConfigFilePath = \Aurora\System\Api::GetModuleManager()->GetModulesPath() . '/' . $sModuleName . '/config.json';
-			if (\file_exists($sDefaultConfigFilePath))
+			if (\file_exists($this->DefaultConfigFilePath))
 			{
 				if (!\file_exists($sModulesSettingsPath))
 				{
 					\mkdir($sModulesSettingsPath, 0777);
 				}
-				\copy($sDefaultConfigFilePath, $sConfigFilePath);
+				\copy($this->DefaultConfigFilePath, $sConfigFilePath);
 			}
 		}
 
 		parent::__construct($sConfigFilePath);
+	}
+	
+	/*
+	 * 
+	 */
+	public function GetDefaultConfigValues()
+	{
+		return (new DefaultSettings($this->DefaultConfigFilePath))->GetConfigValues();
 	}
 }

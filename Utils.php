@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 /**
@@ -1418,13 +1409,13 @@ class Utils
 		{
 			return 0;
 		}
-		else if ($iBigInt > API_PHP_INT_MAX)
+		else if ($iBigInt > AU_API_PHP_INT_MAX)
 		{
-			return API_PHP_INT_MAX;
+			return AU_API_PHP_INT_MAX;
 		}
-		else if ($iBigInt < API_PHP_INT_MIN)
+		else if ($iBigInt < AU_API_PHP_INT_MIN)
 		{
-			return API_PHP_INT_MIN;
+			return AU_API_PHP_INT_MIN;
 		}
 
 		return (int) $iBigInt;
@@ -1737,13 +1728,13 @@ class Utils
 		$files = array();
 
 		// Create recursive dir iterator which skips dot folders
-		$oDirIterator = new RecursiveDirectoryIterator($sPath, 
-				FilesystemIterator::SKIP_DOTS |
-				FilesystemIterator::UNIX_PATHS
+		$oDirIterator = new \RecursiveDirectoryIterator($sPath, 
+				\FilesystemIterator::SKIP_DOTS |
+				\FilesystemIterator::UNIX_PATHS
 		);		
 
-		$oIterators = new RecursiveIteratorIterator($oDirIterator,
-				RecursiveIteratorIterator::SELF_FIRST
+		$oIterators = new \RecursiveIteratorIterator($oDirIterator,
+				\RecursiveIteratorIterator::SELF_FIRST
 		);
 		
 		foreach($oIterators as $oIterator)
@@ -1751,7 +1742,7 @@ class Utils
 			$sName = $oIterator->getFilename();
 			$aMatches = array();
 			$iResult = preg_match("/" . preg_quote($sPattern) . "/ui", $sName, $aMatches);
-			if ($sName !== '.sabredav' && $sName !== API_HELPDESK_PUBLIC_NAME && $iResult === 1)
+			if ($sName !== '.sabredav' && $sName !== AU_API_HELPDESK_PUBLIC_NAME && $iResult === 1)
 			{
 				$files[] = $oIterator->getPathname();		
 			}
@@ -1898,7 +1889,7 @@ class Utils
 	}
 	
 	/**
-	 * @return \CAccount | null
+	 * @return \Aurora\Modules\StandardAuth\Classes\Account | null
 	 */
 	public static function GetDefaultAccount()
 	{
@@ -1912,7 +1903,7 @@ class Utils
 			if (0 < $iAccountId)
 			{
 				$oAccount = $oApiUsers->getAccountById($iAccountId);
-				if ($oAccount instanceof \CAccount && !$oAccount->IsDisabled)
+				if ($oAccount instanceof \Aurora\Modules\StandardAuth\Classes\Account && !$oAccount->IsDisabled)
 				{
 					$oResult = $oAccount;
 				}
@@ -2200,5 +2191,5 @@ class Ints
 
 function fNullCallback() {}
 
-defined('API_PHP_INT_MAX') || define('API_PHP_INT_MAX', (int) Ints::getIntMax());
-defined('API_PHP_INT_MIN') || define('API_PHP_INT_MIN', (int) (API_PHP_INT_MAX + 1));
+defined('AU_API_PHP_INT_MAX') || define('AU_API_PHP_INT_MAX', (int) Ints::getIntMax());
+defined('AU_API_PHP_INT_MIN') || define('AU_API_PHP_INT_MIN', (int) (AU_API_PHP_INT_MAX + 1));

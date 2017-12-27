@@ -1,20 +1,11 @@
 <?php
 /*
  * @copyright Copyright (c) 2017, Afterlogic Corp.
- * @license AGPL-3.0
+ * @license AGPL-3.0 or Afterlogic Software License
  *
- * This code is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License, version 3,
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License, version 3,
- * along with this program.  If not, see <http://www.gnu.org/licenses/>
- * 
+ * This code is licensed under AGPLv3 license or Afterlogic Software License
+ * if commercial version of the product was purchased.
+ * For full statements of the licenses see LICENSE-AFTERLOGIC and LICENSE-AGPL3 files.
  */
 
 namespace Aurora\System\Exceptions;
@@ -97,17 +88,6 @@ class ErrorCodes
 	// db
 	const Db_ExceptionError = 3001;
 	const Db_PdoExceptionError = 3002;
-
-	// mail
-	const Mail_FolderNameContainDelimiter = 4001;
-	const Mail_AccountAuthentication = 4002;
-	const Mail_AccountConnectToMailServerFailed = 4003;
-	const Mail_AccountLoginFailed = 4004;
-	const Mail_InvalidRecipients = 4005;
-	const Mail_CannotRenameNonExistenFolder = 4006;
-	const Mail_CannotSendMessage = 4007;
-	const Mail_CannotSaveMessageInSentItems = 4008;
-	const Mail_MailboxUnavailable = 4009;
 
 	// fetcher
 	const Fetcher_ConnectToMailServerFailed = 4101;
@@ -219,13 +199,6 @@ class ErrorCodes
 
 				self::Db_ExceptionError =>\Aurora\System\Api::I18N('API/DB_EXCEPTION_ERROR'),
 				self::Db_PdoExceptionError =>\Aurora\System\Api::I18N('API/DB_PDO_EXCEPTION_ERROR'),
-
-				self::Mail_FolderNameContainDelimiter =>\Aurora\System\Api::I18N('API/MAIL_FOLDER_NAME_CONTAIN_DELIMITER'),
-				self::Mail_AccountAuthentication =>\Aurora\System\Api::I18N('API/MAIL_ACCOUNT_AUTHENTICATION'),
-				self::Mail_AccountConnectToMailServerFailed =>\Aurora\System\Api::I18N('API/MAIL_ACCOUNT_CONNECT_TO_MAIL_SERVER_FAILED'),
-				self::Mail_CannotRenameNonExistenFolder =>\Aurora\System\Api::I18N('API/MAIL_CANNOT_RENAME_NON_EXITEN_FOLDER'),
-				self::Mail_CannotSendMessage =>\Aurora\System\Api::I18N('API/MAIL_CANNOT_SEND_MESSAGE'),
-				self::Mail_MailboxUnavailable =>\Aurora\System\Api::I18N('API/MAIL_MAILBOX_UNAVAILABLE'),
 
 				self::Fetcher_ConnectToMailServerFailed =>\Aurora\System\Api::I18N('API/FETCHER_CONNECT_TO_MAIL_SERVER_FAILED'),
 				self::Fetcher_AuthError =>\Aurora\System\Api::I18N('API/FETCHER_AUTH_ERROR'),
